@@ -1,0 +1,30 @@
+name: Validate 300-control proof ledger
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ledger-and-simulations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate the full 300-control catalogue
+        run: python generate_ledger.py
+      - name: Validate all 300 records and execute deterministic simulations
+        run: python validate_300.py
+      - name: Upload proof artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 300-control-validation-evidence
+          path: |
+            evidence/controls_300.csv
+            evidence/validation_results.json
+          if-no-files-found: error
