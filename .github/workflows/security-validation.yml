@@ -1,0 +1,38 @@
+name: isolated-security-validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - security-validation/**
+
+permissions:
+  contents: read
+
+jobs:
+  simulation-proofs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run deterministic concurrency and failure proofs
+        run: python -m unittest discover -s tests -v
+
+  source-validator-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate tool syntax
+        run: python -m py_compile security_validation.py
+      - name: Explain target boundary
+        run: |
+          echo 'The proprietary source is intentionally not committed to this public repository.'
+          echo 'Run security_validation.py only against an authorized local target directory.'
