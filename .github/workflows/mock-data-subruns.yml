@@ -1,0 +1,89 @@
+name: Mock-data security subruns
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-mock-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate deterministic synthetic data
+        run: python mock/generate_mock_data.py --seed 42 --customers 250 --transactions 40
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-autopay-data
+          path: artifacts/mock_data.json
+          retention-days: 14
+
+  subrun:
+    needs: generate-mock-data
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - identity_binding
+          - duplicate_identity
+          - consent_enforcement
+          - data_reconciliation
+          - deletion_propagation
+          - stale_overwrite
+          - money_precision
+          - audit_deduplication
+          - rate_limit_replicas
+          - login_counter_race
+          - retry_amplification
+          - backlog_growth
+          - bulk_access_detection
+          - shared_db_blast_radius
+          - recovery_reconciliation
+          - model_input_quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: synthetic-autopay-data
+          path: artifacts
+      - name: Execute ${{ matrix.scenario }}
+        run: python mock/run_subrun.py '${{ matrix.scenario }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subrun-${{ matrix.scenario }}
+          path: artifacts/subruns/${{ matrix.scenario }}.json
+          retention-days: 30
+
+  aggregate:
+    needs: subrun
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: subrun-*
+          path: artifacts/subruns
+          merge-multiple: true
+      - name: Aggregate proof results
+        run: python mock/aggregate_subruns.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mock-subrun-evidence-pack
+          path: |
+            artifacts/mock_subrun_summary.json
+            artifacts/MOCK_SUBRUN_SUMMARY.md
+            artifacts/subruns/*.json
+          retention-days: 30
